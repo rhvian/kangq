@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  # runner 没有 GPU：只做编译 + 纯 CPU 的 Python 对拍（参考实现 / 常量 / 向量），
+  # GPU 三道自检与 bench 在有卡的机器上手动跑（见 README「正确性保证」）。
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: "12.6.0"
+          method: network
+          sub-packages: '["nvcc", "cudart"]'
+
+      - name: Build (sm_75 sm_86 sm_89)
+        run: ARCH="sm_75 sm_86 sm_89" ./build.sh
+
+      - name: Python reference checks
+        run: |
+          python3 tools/verify_against_miner.py
+          python3 tools/verify_prestate.py
+          python3 tools/gen_constants.py && git diff --exit-code src/constants.cuh
+          python3 tools/gen_vectors.py   && git diff --exit-code vectors.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kanq-linux-x64
+          path: |
+            build/kanq
+            build/kanq-test
+            vectors.txt
