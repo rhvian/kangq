@@ -21,6 +21,9 @@
 #include <cstdint>
 
 #include "constants.cuh"
+#ifdef QPOW_LIMB32
+#include "goldilocks32.cuh"   // P0: 32-limb mul (KANQ_PLAN.md); sass_check asserts zero IMAD.HI
+#endif
 
 namespace qpow {
 
@@ -85,12 +88,21 @@ __device__ __forceinline__ u64 reduce128(u32 r0, u32 r1, u32 r2, u32 r3) {
 }
 
 __device__ __forceinline__ u64 gf_mul(u64 a, u64 b) {
+#ifdef QPOW_LIMB32
+    return gf_mul32(a, b);
+#else
     u32 r0, r1, r2, r3;
     mul64wide(a, b, r0, r1, r2, r3);
     return reduce128(r0, r1, r2, r3);
+#endif
 }
 
 // 平方只要 3 个 32 位部分积：(a1:a0)^2 = a0^2 + 2*a0*a1*2^32 + a1^2*2^64
+#ifdef QPOW_LIMB32
+__device__ __forceinline__ u64 gf_sqr(u64 a) {
+    return gf_sqr32(a);
+}
+#else
 __device__ __forceinline__ u64 gf_sqr(u64 a) {
     u32 a0 = (u32)a, a1 = (u32)(a >> 32);
     u64 ll = (u64)a0 * a0;
@@ -109,6 +121,7 @@ __device__ __forceinline__ u64 gf_sqr(u64 a) {
           "r"((u32)(mid >> 32)), "r"((u32)(hh >> 32)), "r"(mid_top));
     return reduce128(r0, r1, r2, r3);
 }
+#endif
 
 // x^7，深度 3：x3 与 x4 都从 x2 出发可并行
 __device__ __forceinline__ u64 gf_sbox(u64 x) {
@@ -158,7 +171,11 @@ __device__ __forceinline__ void wide_add_wide(Wide &w, const Wide &x) {
 }
 
 __device__ __forceinline__ u64 wide_reduce(const Wide &w) {
+#ifdef QPOW_LIMB32
+    return fold128_lazy32(w.l0, w.l1, w.h, 0u);
+#else
     return reduce128(w.l0, w.l1, w.h, 0u);
+#endif
 }
 
 __device__ __forceinline__ void add128_wide(u32 &r0, u32 &r1, u32 &r2, u32 &r3, const Wide &w) {

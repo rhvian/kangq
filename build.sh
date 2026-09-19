@@ -2,7 +2,7 @@
 # KanQ 一键编译：产物 build/kanq（矿工）与 build/kanq-test（自检 + bench）。
 # 环境变量：
 #   NVCC   nvcc 路径（默认 PATH 里的 nvcc，找不到再试 /usr/local/cuda/bin/nvcc）
-#   ARCH   目标架构，默认从 nvidia-smi 检测；多架构用 "sm_86 sm_89" 空格分隔
+#   XDEF   额外 nvcc 定义（如 -DQPOW_LIMB32）\n#   ARCH   目标架构，默认从 nvidia-smi 检测；多架构用 "sm_86 sm_89" 空格分隔
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -20,8 +20,8 @@ for a in $ARCH; do GENCODE="$GENCODE -gencode arch=compute_${a#sm_},code=$a"; do
 mkdir -p build
 echo "nvcc: $NVCC"; echo "arch: $ARCH"
 t0=$(date +%s)
-"$NVCC" -O3 -std=c++17 $GENCODE -o build/kanq      src/miner.cu     -lpthread
-"$NVCC" -O3 -std=c++17 $GENCODE -o build/kanq-test src/kanq_test.cu
+"$NVCC" -O3 -std=c++17 $GENCODE ${XDEF:-} -o build/kanq      src/miner.cu     -lpthread
+"$NVCC" -O3 -std=c++17 $GENCODE ${XDEF:-} -o build/kanq-test src/kanq_test.cu
 echo "done in $(( $(date +%s) - t0 )) s:"
 ls -la build/kanq build/kanq-test
 echo
