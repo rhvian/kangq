@@ -100,7 +100,17 @@ cd kangq
 | `--version` | 显示版本 | — |
 
 `--blocks` / `--iters` 在 4090 上实测不是性能杠杆（871–897 MH/s 全平台），一般不需要改。
-区域节点：`qtc-{eu,us,br,sg,hk,ru,ae}.kryptex.network:7049`。
+
+### 选离你最近的区域节点（影响 Stale 率）
+
+默认域名 `qtc.kryptex.network` 解析到欧洲；区域节点 `qtc-{eu,us,br,sg,hk,ru,ae}.kryptex.network:7049`。
+Stale 率 ≈ 到矿池的单程延迟 ÷ job 间隔（~9 s），所以延迟直接决定损耗：中国机器实测默认节点 245 ms → 2.1% stale，
+`qtc-hk` 88 ms → 明显更低。选节点：
+
+```bash
+for r in eu us br sg hk ru ae; do printf "%-4s" $r; curl -so /dev/null -w "%{time_connect}s\n" telnet://qtc-$r.kryptex.network:7049 --max-time 5; done
+./run.sh --pool qtc-hk.kryptex.network:7049 --wallet ADDR --worker rig01
+```
 
 ---
 
@@ -171,7 +181,7 @@ GPU #0: NVIDIA GeForce RTX 4090  SMs=128  网格=4096×256  每线程 16 nonce  
 ```
 
 - `[进度]` 每 5 秒一行：累计平均速率、轮数、提交/接受/拒绝
-- `[submt] 拒绝: Stale share`：job 切换瞬间的正常损耗（24 小时实跑 2.1%）
+- `[submt] 拒绝: Stale share`：share 在路上时矿池换了 job；比例由到矿池的延迟决定，换最近区域节点可降
 - `[cand ] GPU 候选未过主机精确判定`：惰性归约的预期误差（~3e-7/哈希），不会提交
 
 ---
@@ -271,7 +281,8 @@ kanq/
 矿池不可达或钱包地址格式不对（必须是 `qz` 开头的主网地址）。`telnet qtc.kryptex.network 7049` 看连通性。
 
 ### 拒绝全是 `Stale share`
-正常，job 切换瞬间飞行中的 share 被矿池判过期，24 小时实测 2.1%。若比例明显更高，检查到矿池的延迟或换区域节点。
+发出时本地 job 仍有效、到达矿池时 job 已换（job 间隔 ~9 s）。比例 ≈ 单程延迟 ÷ 9 s：默认欧洲节点从中国 245 ms 实测 2.1%。
+**换离你最近的区域节点**（见「选离你最近的区域节点」）。客户端本身已经在提交前检查 job 是否变更，本地能看到的过期候选不会发出。
 
 ### 拒绝出现 `Invalid nonce`
 不应出现——每个 share 提交前都经主机精确复核。如遇到，跑三道自检并提 issue 附日志。
