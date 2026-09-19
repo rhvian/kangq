@@ -188,13 +188,14 @@ GPU #0: NVIDIA GeForce RTX 4090  SMs=128  网格=4096×256  每线程 16 nonce  
 
 ## 性能参考
 
-同一张 RTX 4090（450 W）：
+实测（4090 450 W / 3080 Ti 337 W）：
 
 | 实现 | 速率 |
 |---|---|
 | **KanQ 1.2** | **~920 MH/s**（`bench 8` 923.6；矿池实跑 916–922） |
 | KanQ 1.1 | ~900 MH/s |
 | 官方 quantus-miner CUDA v4.2.0 | 862–886 MH/s |
+| **KanQ 1.2 · RTX 3080 Ti** | **~380 MH/s**（`bench 6` 383；矿池实跑 380，sm_86，CUDA 13.2，337 W） |
 | 官方 WGSL/Vulkan 路径 | ~106 MH/s（3080 Ti） |
 | fl4shminer（闭源） | 1.22 GH/s |
 
