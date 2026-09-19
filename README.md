@@ -11,7 +11,7 @@
 > - 矿工提交给矿池的全部有效 share，收益**归矿工本人所有**——源码中**没有任何**算力分流、份额重定向、隐藏 devfee 的逻辑，欢迎审计（矿池客户端只有 `src/miner.cu` 一个文件，300 行）。
 > - **严禁商用**（不得做成收费托管 / 云算力 / 收费套件）。
 > - **二次开发禁止加入任何抽水机制**（不得加 devfee、不得分流 share、不得篡改 wallet/worker）。
-> - **二次开发必须标注出处**（保留 `Based on KanQ by tvvshow/kanq`）并保留 [LICENSE](LICENSE) 全文。
+> - **二次开发必须标注出处**（保留 `Based on KanQ by rhvian/kangq`）并保留 [LICENSE](LICENSE) 全文。
 >
 > 完整条款见 [LICENSE](LICENSE)。违反任一条款 = 自动失去授权。
 
@@ -62,8 +62,8 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/tvvshow/kanq.git
-cd kanq
+git clone https://github.com/rhvian/kangq.git
+cd kangq
 ./build.sh                        # 自动从 nvidia-smi 检测架构；约 10–20 秒
 
 # 自检（内核改动后必跑；首次也建议跑一遍）
@@ -297,7 +297,7 @@ kanq/
 | 学习性 fork 与修改 | 闭源魔改、删除 LICENSE、弱化禁商用条款 |
 | 在矿池为本人地址挖矿 | 篡改 wallet/worker 窃取他人算力 |
 
-**二次开发必须**：在用户可见处标注 `Based on KanQ by tvvshow/kanq (https://github.com/tvvshow/kanq)`、保留 LICENSE 全文、以相同条款发布、公开完整源码。
+**二次开发必须**：在用户可见处标注 `Based on KanQ by rhvian/kangq (https://github.com/rhvian/kangq)`、保留 LICENSE 全文、以相同条款发布、公开完整源码。
 
 姊妹项目：[Kan](https://github.com/tvvshow/kan-mine) —— Pearl (PRL) PoUW 矿工，同一许可。
 

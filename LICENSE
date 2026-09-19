@@ -10,7 +10,7 @@ Copyright (c) 2026 KanQ contributors. All rights reserved.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1.1  本软件 100% 开源。源代码随每次发布公开托管于主力仓库
-     https://github.com/tvvshow/kanq ，任何人均可自由审阅、
+     https://github.com/rhvian/kangq ，任何人均可自由审阅、
      学习、研究、在本机或自有矿机上运行。
 
 1.2  本软件的算力输出对矿工 100% 透明：**零开发费 / 零抽水
@@ -61,7 +61,7 @@ Copyright (c) 2026 KanQ contributors. All rights reserved.
 
      (a) **显著标注出处**：在衍生作品的 README、启动横幅、--version
          输出、关于页面等用户可见位置，注明"Based on KanQ by
-         tvvshow/kanq (https://github.com/tvvshow/kanq)"；
+         rhvian/kangq (https://github.com/rhvian/kangq)"；
      (b) **保留本 LICENSE 文件全文**，不得删除或弱化第 2、3 条
          （禁商用、禁抽水）；
      (c) **以相同的本许可条款**（禁商用 + 禁抽水 + 标出处）发布衍生
