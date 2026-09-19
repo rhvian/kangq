@@ -9,8 +9,9 @@
 //      该 nonce 的哈希就是错的——所以主机必须复核。这与官方内核是同一个取舍。
 //   2. 线性层在 96 位宽累加器（Wide）里累加，每个元素只归约一次；朴素版每次 gf_add 都
 //      完整归约 + 规范化（≈10 条指令），一次 permute 里有上千次。
-//   3. 轮循环只小幅展开（见 permute_after_initial）。全展开会让一次 hash ≈ 1 MB 机器码，
-//      超出 SM 指令缓存（二进制 12.6 MB、nvcc 编 10–15 分钟都是症状）。
+//   3. 轮循环只小幅展开（见 QPOW_UNROLL）。整个 hash 直线展开是 24.8k 条 SASS ≈ 387 KB，超出指令缓存后
+//      每个 warp 各自取指：nonce 循环里 warp 一漂移就 −12%（3090 实测，docs/PERFORMANCE.md §2.6）；
+//      用 QPOW_LOCKSTEP 拉齐也只能回到持平（+0.7%），省下的 9% 指令被取指延迟吃掉。
 //
 // 挖矿路径的 nonce 布局约定（与 miner.cu / qpow_host.h 一致）：
 //   nonce[0:56]  在一个 job 内固定（extranonce + salt + 0），连同 header 预计算成 prestate
@@ -285,26 +286,48 @@ __device__ __forceinline__ u64 int_round_p(u64 *state, u64 x, u64 rc0) {
     return out0;
 }
 
+// 轮循环展开档位（P1 直线展开实验，2026-09-20，3090 数据见 docs/PERFORMANCE.md §2.6）：
+//   0  小幅展开（全轮 ×2、部分轮 ×3、末段 ×1），1.2 基线，mine_kernel 4.1k 条 SASS ≈ 64 KB  —— 默认
+//   1  单次 permute 全直线（两次 permute 的 pass 循环保留），12.7k 条 ≈ 199 KB
+//   2  整个 hash 全直线（pass 循环也展开），24.8k 条 ≈ 387 KB —— PeakMiner 的形态（17.7k 条 / 283 KB）
+// 1/2 档指令数比 0 档少 ~9%，但超出指令缓存：warp 在 nonce 循环里漂移后各自取指，npt=16 时 −7% / −12%；
+// 必须配合 QPOW_LOCKSTEP 才回到持平（+0.7%，低于采用门槛），所以默认仍是 0。
+// 任一档都要配合 QPOW_MIN_BLOCKS=1 放开寄存器（压到 80 寄存器就溢出，直线档掉 −11%）。
+#ifndef QPOW_UNROLL
+#define QPOW_UNROLL 0
+#endif
+#if QPOW_UNROLL >= 1
+#define QPOW_UNROLL_FULL_ROUNDS _Pragma("unroll")
+#define QPOW_UNROLL_PARTIAL_ROUNDS _Pragma("unroll")
+#define QPOW_UNROLL_TERMINAL_ROUNDS _Pragma("unroll")
+#else
+#define QPOW_UNROLL_FULL_ROUNDS _Pragma("unroll 2")
+#define QPOW_UNROLL_PARTIAL_ROUNDS _Pragma("unroll 3")
+#define QPOW_UNROLL_TERMINAL_ROUNDS _Pragma("unroll 1")
+#endif
+#if QPOW_UNROLL >= 2
+#define QPOW_UNROLL_PASSES _Pragma("unroll")
+#else
+#define QPOW_UNROLL_PASSES _Pragma("unroll 1")
+#endif
+
 // 除去开头那次外部线性层的完整置换。要求 state 已经加过 RC_INITIAL_EXT[0]。
-// 轮循环只做小幅展开（全轮 ×2、部分轮 ×3）：全展开 ≈ 1 MB 机器码击穿指令缓存慢一个量级；
-// 实测 64 KB 以内直线代码 IPC 不受影响，小幅展开去掉循环携带的寄存器搬运（每 permute 少 ~9% 指令），
-// 但必须配合 QPOW_MIN_BLOCKS=1 放开寄存器（64 寄存器下展开就溢出，反而更慢）。
 __device__ __forceinline__ void permute_after_initial(u64 *state) {
-#pragma unroll 2
+    QPOW_UNROLL_FULL_ROUNDS
     for (int r = 0; r < 4; r++) {
 #pragma unroll
         for (int i = 0; i < 12; i++) state[i] = gf_sbox(state[i]);
         ext_layer(state, RC_INITIAL_EXT[r + 1]);
     }
     u64 x = gf_sbox(state[0]);
-#pragma unroll 3
+    QPOW_UNROLL_PARTIAL_ROUNDS
     for (int r = 0; r < 21; r++) {
         x = gf_sbox(int_round_p(state, x, RC_INTERNAL_EXT[r + 1]));
     }
     state[0] = int_round_p(state, x, 0ULL);
 #pragma unroll
     for (int i = 0; i < 12; i++) state[i] = gf_add(state[i], RC_TERMINAL_EXT[0][i]);
-#pragma unroll 1
+    QPOW_UNROLL_TERMINAL_ROUNDS
     for (int r = 0; r < 4; r++) {
 #pragma unroll
         for (int i = 0; i < 12; i++) state[i] = gf_sbox(state[i]);
@@ -320,7 +343,7 @@ __device__ __forceinline__ void permute(u64 *state) {
 // 挖矿专用：从 prestate（已做过第 3 次置换的初始线性层）出发，跑完第 3 次置换，
 // 加终止符与 push-ONE，再跑完整的第 4 次置换。之后 state[0..3] 就是第一段 squeeze。
 __device__ __forceinline__ void permute_twice_after_initial(u64 *state) {
-#pragma unroll 1
+    QPOW_UNROLL_PASSES
     for (int pass = 0; pass < 2; pass++) {
         if (pass != 0) ext_layer(state, RC_INITIAL_EXT[0]);
         permute_after_initial(state);
@@ -448,6 +471,12 @@ __global__ void __launch_bounds__(256, QPOW_MIN_BLOCKS) mine_kernel(u32 *results
     for (int i = 0; i < 8; i++) tgt[i] = params.target_hi[i];
     u32 base = tid * params.nonces_per_thread;
     for (u32 j = 0; j < params.nonces_per_thread; j++) {
+#ifdef QPOW_LOCKSTEP
+        // 与 QPOW_UNROLL≥1 搭配：每个 nonce 前把块内 8 个 warp 拉齐，让它们同步流过直线代码、共享取指
+        // （PeakMiner 靠每线程每 launch 只算 1 个 hash 天然拉齐）。0 档下零成本也零收益。
+        // total_threads 总是块大小的整数倍，所以没有线程在前面提前 return。
+        __syncthreads();
+#endif
         u32 logical = base + j;
         u64 out4[4];
         first_squeeze_from_prestate(mid, params.idx_base + (u64)logical, out4);

@@ -2,7 +2,8 @@
 # KanQ 一键编译：产物 build/kanq（矿工）与 build/kanq-test（自检 + bench）。
 # 环境变量：
 #   NVCC   nvcc 路径（默认 PATH 里的 nvcc，找不到再试 /usr/local/cuda/bin/nvcc）
-#   XDEF   额外 nvcc 定义（如 -DQPOW_LIMB32）\n#   ARCH   目标架构，默认从 nvidia-smi 检测；多架构用 "sm_86 sm_89" 空格分隔
+#   XDEF   额外 nvcc 定义（如 -DQPOW_UNROLL=0 回到小幅展开、-DQPOW_LIMB32 实验路径）
+#   ARCH   目标架构，默认从 nvidia-smi 检测；多架构用 "sm_86 sm_89" 空格分隔
 set -euo pipefail
 cd "$(dirname "$0")"
 

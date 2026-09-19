@@ -4,6 +4,17 @@
 
 ---
 
+## 未发布
+
+内核默认路径与 1.2 相同（速率不变），只加了实验开关并记录结论：
+
+- `QPOW_UNROLL=0/1/2`（默认 0）：轮循环小幅展开 / 单 permute 直线 / 整个 hash 直线；`QPOW_LOCKSTEP`：每个 nonce 前拉齐块内 warp。
+  3090 实测直线展开 −12%，加 lockstep 后 +0.7%，不采用；机制与数据在 `docs/PERFORMANCE.md §2.6`。
+- `QPOW_LIMB32`（默认关）：32-bit limb 乘法实验路径（`src/goldilocks32.cuh`），三道自检通过但指令数 +47%、速率 185 MH/s，不采用。
+- `tools/sass_check.sh`：静态 SASS 门（IMAD.HI 计数、溢出）。
+
+---
+
 ## 1.2 — 2026-09-19
 
 状态：4090 `bench 8` 923.6 MH/s；矿池实跑 916–922 MH/s；三道自检 38/38；`--once` share accepted。
