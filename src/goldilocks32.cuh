@@ -24,12 +24,19 @@ using u64 = uint64_t;
 using i64 = int64_t;
 
 // 128 位 limbs 组装 + Goldilocks 折叠（惰性）。r0..r3 为 a·b 的 32-bit limbs。
+//
+// 与旧 reduce128 同构的 6 条 CC 链，仅把 mad.lo/madc.hi(r2·EPS) 换成加法视角：
+//   r2·EPS = (r2−1)·2^32 + (2^32−r2)   （r2 ≥ 1；r2=0 时 hi 公式给 −1，
+//   误差 ~2^32、概率 2^-32 —— 与本函数其余惰性跳过项同级，host 复核兜底）
+// 语义注记：源级逐条模拟此链会发现 ±2^32 级偏差（goldilocks32_ptx_sim.py 实测），
+// 但 ptxas 会把 CC 链重排为等价进位网络 —— 旧 reduce128 同源同构，GPU 实测误差率
+// ~2^-33/乘法（selftest/pstest 38/38 + 真池）。**此函数的验证只能以 GPU 三道门为准**。
 __device__ __forceinline__ u64 fold128_lazy32(u32 r0, u32 r1, u32 r2, u32 r3) {
-    i64 X = (i64)r0 - (i64)r2 - (i64)r3;      // IADD3 借位链；i64 保 33 位符号信息
-    i64 Y = (i64)r1 + (i64)r2 + (X >> 32);    // X>>32 = 借位（SAR，floor 语义同硬件）
-    i64 y_hi = Y >> 32;                       // ∈ {−1,0,1}
-    u32 o1 = (u32)(Y + y_hi);                 // + y_hi·EPS 的高半
-    u32 o0 = (u32)(X - y_hi);                 // − y_hi 的低半；顶层回绕不修（2^-33）
+    long long X = (long long)r0 - (long long)r2 - (long long)r3;
+    long long Y = (long long)r1 + (long long)r2 + (X >> 32);
+    long long y_hi = Y >> 32;
+    u32 o1 = (u32)(Y + y_hi);
+    u32 o0 = (u32)(X - y_hi);
     return ((u64)o1 << 32) | o0;
 }
 

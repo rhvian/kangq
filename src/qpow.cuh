@@ -257,14 +257,30 @@ __device__ __forceinline__ u64 int_round_p(u64 *state, u64 x, u64 rc0) {
     Wide s0 = s;
     wide_add(s0, rc0);
     u32 r0, r1, r2, r3;
+#ifdef QPOW_LIMB32
+    mul64wide32(x, MATRIX_DIAG[0], r0, r1, r2, r3);
+#else
     mul64wide(x, MATRIX_DIAG[0], r0, r1, r2, r3);
+#endif
     add128_wide(r0, r1, r2, r3, s0);
+#ifdef QPOW_LIMB32
+    u64 out0 = fold128_lazy32(r0, r1, r2, r3);
+#else
     u64 out0 = reduce128(r0, r1, r2, r3);
+#endif
 #pragma unroll
     for (int i = 1; i < 12; i++) {
+#ifdef QPOW_LIMB32
+        mul64wide32(state[i], MATRIX_DIAG[i], r0, r1, r2, r3);
+#else
         mul64wide(state[i], MATRIX_DIAG[i], r0, r1, r2, r3);
+#endif
         add128_wide(r0, r1, r2, r3, s);
+#ifdef QPOW_LIMB32
+        state[i] = fold128_lazy32(r0, r1, r2, r3);
+#else
         state[i] = reduce128(r0, r1, r2, r3);
+#endif
     }
     return out0;
 }
